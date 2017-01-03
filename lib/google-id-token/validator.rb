@@ -7,6 +7,7 @@ module GoogleIDToken
   class Validator
 
     GOOGLE_CERTS_URI = 'https://www.googleapis.com/oauth2/v1/certs'
+    VALID_ISSUERS = ["accounts.google.com", "https://accounts.google.com"]
 
     # @!attribute [r] problem
     #   Reason for failure, if #check returns nil
@@ -103,7 +104,10 @@ module GoogleIDToken
           @problem = 'Token audience mismatch'
         elsif cid && !(@token.has_key?('cid') && (@token['cid'] == cid))
           @problem = 'Token client-id mismatch'
+        elsif !(@token.has_key?('iss') && VALID_ISSUERS.include?(@token['iss']))
+          @problem = "Token issuer mismatch"
         end
+
         @problem ? :problem : :valid
       else
         nil

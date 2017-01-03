@@ -3,7 +3,7 @@ require "fakeweb"
 
 shared_examples "validates aud" do
   it 'is all good if aud is the same' do
-    token = JWT.encode({ aud: "audience" }, @private_key, "RS256")
+    token = JWT.encode(@base_payload.merge(aud: "audience"), @private_key, "RS256")
 
     decoded_token = @validator.check(token, "audience")
 
@@ -12,7 +12,7 @@ shared_examples "validates aud" do
   end
 
   it 'reports error if aud is different' do
-    token = JWT.encode({ aud: "differnt_audience" }, @private_key, "RS256")
+    token = JWT.encode(@base_payload.merge(aud: "differnt_audience"), @private_key, "RS256")
 
     decoded_token = @validator.check(token, "audience")
 
@@ -23,7 +23,7 @@ end
 
 shared_examples "validates cid" do
   it 'is all good if cid is the same' do
-    token = JWT.encode({ aud: "audience", cid: "client_id" }, @private_key, "RS256")
+    token = JWT.encode(@base_payload.merge(aud: "audience", cid: "client_id"), @private_key, "RS256")
 
     decoded_token = @validator.check(token, "audience", "client_id")
 
@@ -32,7 +32,7 @@ shared_examples "validates cid" do
   end
 
   it 'is all good also if cid comes in the form of azp' do
-    token = JWT.encode({ aud: "audience", azp: "client_id" }, @private_key, "RS256")
+    token = JWT.encode(@base_payload.merge(aud: "audience", azp: "client_id"), @private_key, "RS256")
 
     decoded_token = @validator.check(token, "audience", "client_id")
 
@@ -42,7 +42,7 @@ shared_examples "validates cid" do
   end
 
   it 'reports error if cid is different' do
-    token = JWT.encode({ aud: "audience", cid: "different_client_id" }, @private_key, "RS256")
+    token = JWT.encode(@base_payload.merge(aud: "audience", cid: "different_client_id"), @private_key, "RS256")
 
     decoded_token = @validator.check(token, "audience", "client_id")
 
@@ -51,12 +51,55 @@ shared_examples "validates cid" do
   end
 
   it 'reports error if cid is different in the form of azp' do
-    token = JWT.encode({ aud: "audience", azp: "different_client_id" }, @private_key, "RS256")
+    token = JWT.encode(@base_payload.merge(aud: "audience", azp: "different_client_id"), @private_key, "RS256")
 
     decoded_token = @validator.check(token, "audience", "client_id")
 
     expect(decoded_token).to be_nil
     expect(@validator.problem).to eq("Token client-id mismatch")
+  end
+end
+
+shared_examples "validates iss" do
+  it "is all good if iss is accounts.google.com" do
+    token = JWT.encode(
+      @base_payload.merge(aud: "audience", iss: "accounts.google.com"),
+      @private_key,
+      "RS256"
+    )
+
+    decoded_token = @validator.check(token, "audience")
+
+    expect(decoded_token).not_to be_nil
+    expect(decoded_token["iss"]).to eq("accounts.google.com")
+    expect(@validator.problem).to be_nil
+  end
+
+  it "is all good if iss is https://accounts.google.com" do
+    token = JWT.encode(
+      @base_payload.merge(aud: "audience", iss: "https://accounts.google.com"),
+      @private_key,
+      "RS256"
+    )
+
+    decoded_token = @validator.check(token, "audience")
+
+    expect(decoded_token).not_to be_nil
+    expect(decoded_token["iss"]).to eq("https://accounts.google.com")
+    expect(@validator.problem).to be_nil
+  end
+
+  it "reports error if iss has wrong value" do
+    token = JWT.encode(
+      @base_payload.merge(aud: "audience", iss: "not.google.com"),
+      @private_key,
+      "RS256"
+    )
+
+    decoded_token = @validator.check(token, "audience")
+
+    expect(decoded_token).to be_nil
+    expect(@validator.problem).to eq("Token issuer mismatch")
   end
 end
 
@@ -69,6 +112,8 @@ describe GoogleIDToken::Validator do
     @certificate.not_after = Time.now + 365 * 24 * 60 * 60
     @certificate.public_key = public_key
     @certificate.sign(@private_key, OpenSSL::Digest::SHA1.new)
+
+    @base_payload = { iss: "accounts.google.com" }
   end
 
   context "with literal certificate" do
@@ -78,6 +123,7 @@ describe GoogleIDToken::Validator do
 
     it_behaves_like "validates aud"
     it_behaves_like "validates cid"
+    it_behaves_like "validates iss"
   end
 
   context "with fetched certificate" do
@@ -93,12 +139,17 @@ describe GoogleIDToken::Validator do
 
     it_behaves_like "validates aud"
     it_behaves_like "validates cid"
+    it_behaves_like "validates iss"
   end
 
   it "rejects corrupted token" do
     validator = GoogleIDToken::Validator.new(x509_cert: @certificate)
 
-    token = JWT.encode({ aud: "audience", azp: "different_client_id" }, @private_key, "RS256")
+    token = JWT.encode(
+      @base_payload.merge(aud: "audience", azp: "different_client_id"),
+      @private_key,
+      "RS256"
+    )
 
     decoded_token = validator.check("corrupted#{token}", "audience", "client_id")
 
