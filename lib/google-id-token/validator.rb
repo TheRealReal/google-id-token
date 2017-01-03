@@ -7,6 +7,9 @@ module GoogleIDToken
   class Validator
 
     GOOGLE_CERTS_URI = 'https://www.googleapis.com/oauth2/v1/certs'
+
+    # Valid issuer values as documented here:
+    # https://developers.google.com/identity/sign-in/web/backend-auth
     VALID_ISSUERS = ["accounts.google.com", "https://accounts.google.com"]
 
     # @!attribute [r] problem
