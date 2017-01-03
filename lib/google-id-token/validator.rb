@@ -80,35 +80,47 @@ module GoogleIDToken
         begin
           public_key = cert.public_key
           @token = JWT.decode(token, public_key, !!public_key)
+        rescue JWT::DecodeError => e
+          if defined?(JWT::ExpiredSignature) && e.is_a?(JWT::ExpiredSignature)
+            @problem = "Token is expired"
 
-          # Support for JWT 1.x version
-          if @token.is_a?(Array)
-            @token = @token[0]
+            break
+          else
+            nil # go on, try the next cert
           end
-
-          # in Feb 2013, the 'cid' claim became the 'azp' claim per changes
-          #  in the OIDC draft. At some future point we can go all-azp, but
-          #  this should keep everything running for a while
-          if @token['azp']
-            @token['cid'] = @token['azp']
-          elsif @token['cid']
-            @token['azp'] = @token['cid']
-          end
-        rescue JWT::DecodeError
-          nil # go on, try the next cert
         end
       end
 
+      # Support for JWT 1.x version
+      if @token.is_a?(Array)
+        @token = @token[0]
+      end
+
       if @token
+        # in Feb 2013, the 'cid' claim became the 'azp' claim per changes
+        #  in the OIDC draft. At some future point we can go all-azp, but
+        #  this should keep everything running for a while
+        if @token['azp']
+          @token['cid'] = @token['azp']
+        elsif @token['cid']
+          @token['azp'] = @token['cid']
+        end
+
         if !(@token.has_key?('aud') && (@token['aud'] == aud))
           @problem = 'Token audience mismatch'
         elsif cid && !(@token.has_key?('cid') && (@token['cid'] == cid))
           @problem = 'Token client-id mismatch'
         elsif !(@token.has_key?('iss') && VALID_ISSUERS.include?(@token['iss']))
           @problem = "Token issuer mismatch"
+        elsif !(@token.has_key?('exp') && @token['exp'] > Time.now.to_i)
+          @problem = "Token is expired"
         end
+      end
 
-        @problem ? :problem : :valid
+      if @problem
+        :problem
+      elsif @token
+        :valid
       else
         nil
       end

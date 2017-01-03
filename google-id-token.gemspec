@@ -33,6 +33,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'multi_json'
   s.add_runtime_dependency 'jwt'
 
+  s.add_development_dependency 'appraisal', '~> 2.1'
   s.add_development_dependency 'bundler', '~> 1.13'
   s.add_development_dependency 'fakeweb'
   s.add_development_dependency 'rake'

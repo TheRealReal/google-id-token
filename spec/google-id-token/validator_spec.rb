@@ -60,6 +60,35 @@ shared_examples "validates cid" do
   end
 end
 
+shared_examples "validates exp" do
+  it 'is all good if exp is in the future' do
+    token = JWT.encode(
+      @base_payload.merge(aud: "audience", exp: Time.now.to_i + 60),
+      @private_key,
+      "RS256"
+    )
+
+    decoded_token = @validator.check(token, "audience")
+
+    expect(decoded_token).not_to be_nil
+    expect(@validator.problem).to be_nil
+  end
+
+  it 'reports error if exp has elapsed' do
+    token = JWT.encode(
+      @base_payload.merge(aud: "audience", exp: Time.now.to_i),
+      @private_key,
+      "RS256"
+    )
+
+    decoded_token = @validator.check(token, "audience")
+
+    expect(decoded_token).to be_nil
+    expect(@validator.problem).not_to be_nil
+    expect(@validator.problem).to eq("Token is expired")
+  end
+end
+
 shared_examples "validates iss" do
   it "is all good if iss is accounts.google.com" do
     token = JWT.encode(
@@ -113,7 +142,7 @@ describe GoogleIDToken::Validator do
     @certificate.public_key = public_key
     @certificate.sign(@private_key, OpenSSL::Digest::SHA1.new)
 
-    @base_payload = { iss: "accounts.google.com" }
+    @base_payload = { iss: "accounts.google.com", exp: Time.now.to_i + 60 }
   end
 
   context "with literal certificate" do
@@ -124,6 +153,7 @@ describe GoogleIDToken::Validator do
     it_behaves_like "validates aud"
     it_behaves_like "validates cid"
     it_behaves_like "validates iss"
+    it_behaves_like "validates exp"
   end
 
   context "with fetched certificate" do
@@ -140,6 +170,7 @@ describe GoogleIDToken::Validator do
     it_behaves_like "validates aud"
     it_behaves_like "validates cid"
     it_behaves_like "validates iss"
+    it_behaves_like "validates exp"
   end
 
   it "rejects corrupted token" do
